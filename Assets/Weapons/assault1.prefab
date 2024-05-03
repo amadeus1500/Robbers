@@ -5056,13 +5056,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   particles:
   - {fileID: 6158724148572587053}
+  fireMode: 0
   Handle: {fileID: 7936498274463231496}
   SecondHandle: {fileID: 403330987425647923}
   FireSpeed: 0.1
   Damage: 20
-  AnimationSpeed: 0.1
+  AttackAnimation: Shoot
   Recoil: 2
   RecoilTime: 0.1
+  Distance: 150
+  NeedIK: 1
+  ReloadAnimation: Reload
+  Reloadable: 1
+  InfiniteAmmo: 0
+  Ammo: 30
+  MaxAmmo: 30
 --- !u!1 &8656229267773365595
 GameObject:
   m_ObjectHideFlags: 0

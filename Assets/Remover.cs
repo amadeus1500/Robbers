@@ -3,22 +3,11 @@ using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
-public class Remover : NetworkBehaviour
+public class Remover : MonoBehaviour
 {
     [SerializeField] float LifeTime;
-    [SerializeField] NetworkObject nwo;
-    IEnumerator WaitToDestroy()
+    private void Start()
     {
-        yield return new WaitForSeconds(LifeTime);
-        if (IsServer)
-        {
-            nwo.Despawn(true);
-        }
-    }
-    public override void OnNetworkSpawn()
-    {
-        base.OnNetworkSpawn();
-        if (!IsServer) return;
-        StartCoroutine(WaitToDestroy());
+        Destroy(gameObject, LifeTime);
     }
 }

@@ -6,8 +6,9 @@ using UnityEngine;
 public class RobberController : PlayerController
 {
    public RobberMoveSet moveset;
-    private void Update()
+    void Update()
     {
+        UpdateRun();
         moveset.AbilityUpdate();
     }
 }

@@ -1,15 +1,18 @@
+using Photon.Pun;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using Unity.Burst.CompilerServices;
 using Unity.Netcode;
 using Unity.Netcode.Components;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
 using UnityEngine.Assertions.Must;
 
-public class PlayerController : NetworkBehaviour
+public class PlayerController : MonoBehaviourPun
 {
+    [SerializeField] PhotonView PV;
     [SerializeField] private GameObject cam;
     [SerializeField] private Transform cameraPos;
     [SerializeField] private Camera camer;
@@ -28,6 +31,7 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] MultiAimConstraint GunAim;
     [SerializeField] RigBuilder rig;
     public List<SkinnedMeshRenderer> SkinMeshes;
+    Coroutine RecoilCoroutine;
 
     //float recoilDuration;
     //float recoildestination;
@@ -40,30 +44,43 @@ public class PlayerController : NetworkBehaviour
     float MXaxis;
     float MYaxis;
     float angle = 0;
-    public override void OnNetworkSpawn()
+    //public override void OnNetworkSpawn()
+    //{
+    //    base.OnNetworkSpawn();
+    //    if (!IsOwner) return;
+    //    Cursor.lockState = CursorLockMode.Locked;
+    //    camer.enabled = true;
+    //    listener.enabled = true;
+    //    foreach (var item in FullBody)
+    //    {
+    //        item.layer = 2;
+    //    }
+    //    UpdateAmmo();
+    //}
+    private void Start()
     {
-        base.OnNetworkSpawn();
-        if (!IsOwner) return;
-        Cursor.lockState = CursorLockMode.Locked;
-        camer.enabled = true;
-        listener.enabled = true;
-        foreach (var item in FullBody)
+        if (PV.IsMine)
         {
-            item.layer = 2;
+            Cursor.lockState = CursorLockMode.Locked;
+            camer.enabled = true;
+            listener.enabled = true;
+            foreach (var item in FullBody)
+            {
+                item.layer = 2;
+            }
+            UpdateAmmo();
         }
-        UpdateAmmo();
     }
-    IEnumerator lerpRecoil(float LerpTime)
+    IEnumerator lerpRecoil(float duration)
     {
-        float StartTime = Time.time;
-        float EndTime = StartTime + LerpTime;
+        float StartTime = 0;
 
-        while (Time.time < EndTime)
-        {
-            float timeProgressed = (Time.time - StartTime) / LerpTime;  // this will be 0 at the beginning and 1 at the end.
-            angle = Mathf.Lerp(angle, angle- CurrentGun.Recoil, timeProgressed);
-
-            yield return new WaitForFixedUpdate();
+        while (StartTime <= duration)
+        {// this will be 0 at the beginning and 1 at the end.
+            StartTime += Time.deltaTime;
+            float step = Mathf.Clamp01(StartTime / duration);
+            angle = Mathf.Lerp(angle, angle- CurrentGun.Recoil, step);
+            yield return null;
         }
 
     }
@@ -87,7 +104,11 @@ public class PlayerController : NetworkBehaviour
     {
         //recoilDuration = 0;
         //recoildestination = angle - CurrentGun.Recoil;
-        StartCoroutine(lerpRecoil(CurrentGun.RecoilTime));
+        if(RecoilCoroutine != null)
+        {
+            StopCoroutine(RecoilCoroutine);
+        }
+       RecoilCoroutine = StartCoroutine(lerpRecoil(CurrentGun.RecoilTime));
     }
     void EquipGun(int gun)
     {
@@ -121,9 +142,13 @@ public class PlayerController : NetworkBehaviour
             rig.Build();
         }
     }
-    void Update()
+    private void Update()
     {
-        if (!IsOwner) return;
+        UpdateRun();
+    }
+    protected void UpdateRun()
+    {
+        if (!PV.IsMine) return;
         if(!reloading)
         {
             if (Input.GetKeyDown(KeyCode.Alpha1))
@@ -132,7 +157,7 @@ public class PlayerController : NetworkBehaviour
                 animator.SetBool("Knife", false);
                 CurrentGun = PrimaryGun;
                 UpdateAmmo();
-                GunSwitchServerRpc(1);
+                this.photonView.RPC(nameof(GunSwitchClientRpc), RpcTarget.All, 1);
             }
             else if (Input.GetKeyDown(KeyCode.Alpha2))
             {
@@ -140,7 +165,7 @@ public class PlayerController : NetworkBehaviour
                 animator.SetBool("Knife", false);
                 CurrentGun = SecondaryGun;
                 UpdateAmmo();
-                GunSwitchServerRpc(2);
+                this.photonView.RPC(nameof(GunSwitchClientRpc), RpcTarget.All, 2);
             }
             else if (Input.GetKeyDown(KeyCode.Alpha3))
             {
@@ -148,7 +173,7 @@ public class PlayerController : NetworkBehaviour
                 animator.SetBool("Knife", true);
                 CurrentGun = Melee;
                 UpdateAmmo();
-                GunSwitchServerRpc(3);
+                this.photonView.RPC(nameof(GunSwitchClientRpc), RpcTarget.All, 3);
             }
         };
         MXaxis = Input.GetAxis("Mouse X") * Sensitivity * Time.deltaTime;
@@ -181,7 +206,7 @@ public class PlayerController : NetworkBehaviour
             RemoveBullet();
             UpdateAmmo();
             StartRecoil();
-            GunShootServerRpc();
+            this.photonView.RPC(nameof(GunShootClientRpc), RpcTarget.All);
             if (Physics.Raycast(camer.ScreenPointToRay(Input.mousePosition), out RaycastHit hit, CurrentGun.Distance,~LevelManager.Singletone.BulletIgnore))
             {
                 if(hit.collider.gameObject.TryGetComponent<Health>(out Health hp))
@@ -190,7 +215,9 @@ public class PlayerController : NetworkBehaviour
                 }
                 if (hit.collider.CompareTag("Wall"))
                 {
-                    BulletholeServerRpc(new Vector3(hit.point.x, hit.point.y + 0.01f, hit.point.z), Quaternion.LookRotation(hit.normal));
+                    //BulletholeServerRpc(new Vector3(hit.point.x, hit.point.y + 0.01f, hit.point.z), Quaternion.LookRotation(hit.normal));
+                    //this.photonView.RPC(nameof(BulletholeClientRpc), RpcTarget.All, new Vector3(hit.point.x, hit.point.y + 0.01f, hit.point.z), Quaternion.LookRotation(hit.normal));
+                    BulletholeClientRpc(new Vector3(hit.point.x, hit.point.y + 0.01f, hit.point.z), Quaternion.LookRotation(hit.normal));
                 }
                 print(hit.collider.name);
             }
@@ -198,50 +225,63 @@ public class PlayerController : NetworkBehaviour
         if (Input.GetKeyDown(KeyCode.R) && CurrentGun.Reloadable && !reloading && !CurrentGun.InfiniteAmmo)
         {
             reloading = true;
-            animator.SetTrigger(CurrentGun.ReloadAnimation);
+            this.photonView.RPC(nameof(PlayReload), RpcTarget.All);
             Invoke(nameof(ReloadEnd), 1.7f);
         }
+    }
+    private void FixedUpdate()
+    {
+        if (!PV.IsMine) return;
+        angle = Mathf.Clamp(angle, -90, 90);
+        cam.transform.localRotation = Quaternion.Euler(angle, 0, 0);
     }
     private void LateUpdate()
     {
         cam.transform.position = cameraPos.position;
-        angle = Mathf.Clamp(angle, -90, 90);
-        cam.transform.localRotation = Quaternion.Euler(angle, 0, 0);
+        //angle = Mathf.Clamp(angle, -90, 90);
+        //cam.transform.localRotation = Quaternion.Euler(angle, 0, 0);
     }
 
-    [ServerRpc(RequireOwnership = false)]
-    private void GunSwitchServerRpc(int gun)
-    {
-        GunSwitchClientRpc(gun);
-    }
-    [ClientRpc()]
-    private void GunSwitchClientRpc(int gun)
+    //[ServerRpc(RequireOwnership = false)]
+    //private void GunSwitchServerRpc(int gun)
+    //{
+    //    GunSwitchClientRpc(gun);
+    //}
+    [PunRPC]
+    public void GunSwitchClientRpc(int gun)
     {
         EquipGun(gun);
     }
-    [ServerRpc(RequireOwnership = false)]
-    private void GunShootServerRpc()
-    {
-        GunShootClientRpc();
-    }
-    [ClientRpc()]
-    private void GunShootClientRpc()
+    //[ServerRpc(RequireOwnership = false)]
+    //private void GunShootServerRpc()
+    //{
+    //    GunShootClientRpc();
+    //}
+    [PunRPC]
+    public void GunShootClientRpc()
     {
         animator.SetTrigger(CurrentGun.AttackAnimation);
         CurrentGun.EmitShootParticle();
     }
-    [ServerRpc(RequireOwnership = false)]
-    private void BulletholeServerRpc(Vector3 pos, Quaternion rot)
+    [PunRPC]
+    public void PlayReload()
     {
-        GameObject obj = Instantiate(LevelManager.Singletone.BulletHole, pos, rot);
-        NetworkObject nobj = obj.GetComponent<NetworkObject>();
-        nobj.Spawn();
+        animator.SetTrigger(CurrentGun.ReloadAnimation);
     }
-    //[ClientRpc()]
-    //private void BulletholeClientRpc(RaycastHit hit)
+    //[ServerRpc(RequireOwnership = false)]
+    //private void BulletholeServerRpc(Vector3 pos, Quaternion rot)
     //{
-    //    GameObject obj = Instantiate(LevelManager.Singletone.BulletHole, new Vector3(hit.point.x, hit.point.y + 0.01f, hit.point.z + -0.01f), Quaternion.LookRotation(hit.normal));
+    //    GameObject obj = Instantiate(LevelManager.Singletone.BulletHole, pos, rot);
     //    NetworkObject nobj = obj.GetComponent<NetworkObject>();
     //    nobj.Spawn();
     //}
+    //[ClientRpc()]
+    //[PunRPC]
+    public void BulletholeClientRpc(Vector3 pos, Quaternion rot)
+    {
+        //GameObject obj = Instantiate(LevelManager.Singletone.BulletHole, new Vector3(hit.point.x, hit.point.y + 0.01f, hit.point.z + -0.01f), Quaternion.LookRotation(hit.normal));
+        //NetworkObject nobj = obj.GetComponent<NetworkObject>();
+        //nobj.Spawn();
+        GameObject obj = PhotonNetwork.Instantiate(LevelManager.Singletone.BulletHole.name, pos,rot);
+    }
 }

@@ -1,3 +1,4 @@
+using Photon.Pun;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
@@ -5,12 +6,13 @@ using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class Health : NetworkBehaviour
+public class Health : MonoBehaviourPun
 {
     public float health;
     public float Maxhealth;
     bool isAlive = true;
     [SerializeField] PlayerController contrl;
+    [SerializeField] PhotonView PV;
     [SerializeField] CharacterController CharControler;
     [SerializeField] Animator animator;
     [SerializeField] Vector3 SpawnPoint;
@@ -24,7 +26,7 @@ public class Health : NetworkBehaviour
         CharControler.enabled = true;
         contrl.enabled = true;
         isAlive = true;
-        if(IsOwner)
+        if(PV.IsMine)
          UpdateHpBar();
     }
     public void Die()
@@ -48,25 +50,19 @@ public class Health : NetworkBehaviour
     }
     public void TakeDamage(float damage)
     {
-        DamageServerRpc(damage);
+        this.PV.RPC(nameof(DamageClientRpc), RpcTarget.All, damage);
     }
-    [ClientRpc()]
-    void DamageClientRpc(float dm)
+    [PunRPC]
+   public void DamageClientRpc(float dm)
     {
         health -= dm;
         if (health <= 0)
         {
             Die();
         }
-        if (IsOwner)
+        if (PV.IsMine)
         {
             UpdateHpBar();
         }
-    }
-    [ServerRpc(RequireOwnership = false)]
-    void DamageServerRpc(float dm)
-    {
-        if (!isAlive) return;
-        DamageClientRpc(dm);
     }
 }
