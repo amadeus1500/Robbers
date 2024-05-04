@@ -13,7 +13,7 @@ public class MatchMaker : MonoBehaviourPunCallbacks
     [SerializeField] MRoom RM;
     [SerializeField] TMP_InputField RoomNameField;
     private Dictionary<string, RoomInfo> cachedRoomList = new Dictionary<string, RoomInfo>();
-    private Dictionary<string, GameObject> AddedRooms = new Dictionary<string, GameObject>();
+    private List<GameObject> AddedRooms = new List<GameObject>();
     private void Awake()
     {
         PhotonNetwork.AutomaticallySyncScene = true;
@@ -55,15 +55,19 @@ public class MatchMaker : MonoBehaviourPunCallbacks
                 cachedRoomList[info.Name] = info;
             }
         }
-        AddedRooms.Clear();
+        foreach (GameObject obj in AddedRooms)
+        {
+            Destroy(obj);
+        }
         foreach (var item in cachedRoomList)
         {
             MRoom room = Instantiate(RM, Content);
             room.roomname_ = item.Value.Name;
+            room.Count = $"{item.Value.PlayerCount}/{item.Value.MaxPlayers}";
             room.gameObject.GetComponent<Button>().onClick.AddListener(() => {
                 PhotonNetwork.JoinRoom(item.Value.Name);
             });
-            AddedRooms[room.gameObject.name] = room.gameObject;
+            AddedRooms.Add(room.gameObject);
         }
     }
     public override void OnRoomListUpdate(List<RoomInfo> roomList)
@@ -73,6 +77,8 @@ public class MatchMaker : MonoBehaviourPunCallbacks
     public override void OnJoinedRoom()
     {
         Debug.Log("Joined The Room");
+        if(PhotonNetwork.IsMasterClient)
+        PhotonNetwork.LoadLevel(1);
     }
     public override void OnJoinedLobby()
     {
