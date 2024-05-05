@@ -16,8 +16,14 @@ public class Health : MonoBehaviourPun
     [SerializeField] CharacterController CharControler;
     [SerializeField] Animator animator;
     [SerializeField] Vector3 SpawnPoint;
+    [SerializeField] Spectation spectator;
     public MeshRenderer[] meshes;
     public SkinnedMeshRenderer[] skinnedmesher;
+    private void Start()
+    {
+        if (!PV.IsMine) return;
+        LevelManager.Singletone.Clienthealth = this;
+    }
     public void Respawn()
     {
         health = 100;
@@ -37,7 +43,16 @@ public class Health : MonoBehaviourPun
         contrl.enabled = false;
         CharControler.enabled = false;
         animator.enabled = false;
-        Invoke(nameof(Respawn), 5f);
+        LevelManager.Singletone.Died(photonView.Owner.ActorNumber);
+        if (PV.IsMine)
+        {
+            spectator.enabled = true;
+        }
+        spectator.Died = true;
+        if (PV.IsMine)
+        {
+            spectator.Switch(1);
+        }
     }
     float OneToZero(float value, float maxvaule)
     {

@@ -46,6 +46,12 @@ MonoBehaviour:
   - PlayReload
   - SpawnPlayer
   - Spawn
+  - UpdateText
+  - AddIntoGame
+  - UpdateGame
+  - Died
+  - KillAll
+  - GotDied
   DisableAutoOpenWizard: 1
   ShowSettings: 0
   DevRegionSetOnce: 1
