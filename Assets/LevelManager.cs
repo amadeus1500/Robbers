@@ -28,6 +28,7 @@ public static LevelManager Singletone;
     public TextMeshProUGUI HpText;
     public TextMeshProUGUI InterText;
     public Image Hpbar;
+    public Image StaminaBar;
     public GameObject PlayerPrefab;
     public Health Clienthealth;
     public List<Spectation> AvSpectators = new List<Spectation>();

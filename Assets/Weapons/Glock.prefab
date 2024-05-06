@@ -5089,3 +5089,7 @@ MonoBehaviour:
   InfiniteAmmo: 0
   Ammo: 7
   MaxAmmo: 7
+  HeadShotDamageMult: 1.5
+  ShootClip: {fileID: 8300000, guid: 9563fb989c8ef9d4db27509a36300f06, type: 3}
+  MinRange: 3
+  MaxRange: 10

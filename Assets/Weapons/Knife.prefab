@@ -177,6 +177,10 @@ MonoBehaviour:
   InfiniteAmmo: 1
   Ammo: 1
   MaxAmmo: 1
+  HeadShotDamageMult: 1.5
+  ShootClip: {fileID: 8300000, guid: c8263ad2b4ecba34e890ff47d837618b, type: 3}
+  MinRange: 5
+  MaxRange: 20
 --- !u!114 &-7921225372032426536
 MonoBehaviour:
   m_ObjectHideFlags: 0

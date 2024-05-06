@@ -26,6 +26,10 @@ public class WeaponInfo : MonoBehaviour
     public bool InfiniteAmmo = false;
     public int Ammo = 30;
     public int MaxAmmo = 30;
+    public float HeadShotDamageMult = 1.5f;
+    public AudioClip ShootClip;
+    public float MinRange = 5;
+    public float MaxRange = 20;
     public bool ShootValidation()
     {
         bool shot = false;

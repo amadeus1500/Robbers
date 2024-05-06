@@ -13,6 +13,7 @@ using UnityEngine.Assertions.Must;
 public class PlayerController : MonoBehaviourPun
 {
     [SerializeField] PhotonView PV;
+    [SerializeField] AutoSoundPlayer ASP;
     [SerializeField] private GameObject cam;
     [SerializeField] private Transform cameraPos;
     [SerializeField] private Camera camer;
@@ -30,20 +31,33 @@ public class PlayerController : MonoBehaviourPun
     [SerializeField] TwoBoneIKConstraint Left;
     [SerializeField] MultiAimConstraint GunAim;
     [SerializeField] RigBuilder rig;
+    [SerializeField] float MaxStamina;
+    [SerializeField] float StaminaDrain;
+    [SerializeField] float StaminaGain;
+    [SerializeField] float TimeBeforeStaminaRegen;
+    [SerializeField] float SpeedGainOnRun = 6;
+    [SerializeField] float JumpForce = 10;
+    [SerializeField] float JumpCoolDown = 0.2f;
+    [SerializeField] float StaminaOnJump = 20;
     public List<SkinnedMeshRenderer> SkinMeshes;
     Coroutine RecoilCoroutine;
 
     //float recoilDuration;
     //float recoildestination;
     protected bool reloading = false;
-
+    bool needtojump = false;
+    float Stamina;
+    double LastSprintTime;
+    float LastjumpCoolDown;
     float TimeBeforeNextShoot;
     bool Walking;
+    bool Running;
     float Xaxis;
     float Yaxis;
     float MXaxis;
     float MYaxis;
     float angle = 0;
+    Vector3 Gravity;
     //public override void OnNetworkSpawn()
     //{
     //    base.OnNetworkSpawn();
@@ -59,8 +73,11 @@ public class PlayerController : MonoBehaviourPun
     //}
     private void Start()
     {
+        Stamina = MaxStamina;
         if (PV.IsMine)
         {
+            controller.enabled = true;
+            controller.detectCollisions = true;
             Cursor.lockState = CursorLockMode.Locked;
             camer.enabled = true;
             listener.enabled = true;
@@ -69,6 +86,10 @@ public class PlayerController : MonoBehaviourPun
                 item.layer = 2;
             }
             UpdateAmmo();
+        }
+        else
+        {
+            controller.detectCollisions = false;
         }
     }
     IEnumerator lerpRecoil(float duration)
@@ -142,6 +163,10 @@ public class PlayerController : MonoBehaviourPun
             rig.Build();
         }
     }
+    void UpdateStaminaBar()
+    {
+        LevelManager.Singletone.StaminaBar.fillAmount = Stamina / MaxStamina;
+    }
     private void Update()
     {
         UpdateRun();
@@ -180,6 +205,33 @@ public class PlayerController : MonoBehaviourPun
         MYaxis = Input.GetAxis("Mouse Y") * Sensitivity * Time.deltaTime;
         Xaxis = Input.GetAxisRaw("Horizontal");
         Yaxis = Input.GetAxisRaw("Vertical");
+        if (Input.GetKeyDown(KeyCode.LeftShift) && !Running)
+        {
+            Running = true;
+            Speed += SpeedGainOnRun;
+        }
+        else if (Input.GetKeyUp(KeyCode.LeftShift) && Running)
+        {
+            Running = false;
+            Speed -= SpeedGainOnRun;
+        }
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            if (controller.isGrounded)
+            {
+                if (Stamina > StaminaOnJump)
+                {
+                    Stamina -= StaminaOnJump;
+                    LastSprintTime = PhotonNetwork.Time + TimeBeforeStaminaRegen;
+                    if (LastjumpCoolDown < Time.time)
+                    {
+                        LastjumpCoolDown = Time.time + JumpCoolDown;
+                        needtojump = true;
+                        photonView.RPC(nameof(PlayTrigger), RpcTarget.All, "Jump");
+                    }
+                }
+            }
+        }
         if(transform.forward * Yaxis + transform.right * Xaxis == Vector3.zero)
         {
             Walking = false;
@@ -188,8 +240,54 @@ public class PlayerController : MonoBehaviourPun
         {
             Walking = true;
         }
+        if (Running)
+        {
+            if (Xaxis != 0 || Yaxis != 0)
+            {
+                LastSprintTime = PhotonNetwork.Time + TimeBeforeStaminaRegen;
+                Stamina = Mathf.Clamp(Stamina - StaminaDrain * Time.deltaTime, 0, MaxStamina);
+                if (Stamina <= 0)
+                {
+                    Running = false;
+                    Speed -= SpeedGainOnRun;
+                    animator.SetBool("Running", Running);
+                }
+                animator.SetBool("Running", Running);
+            }
+            else
+            {
+                if (LastSprintTime < PhotonNetwork.Time)
+                {
+                    Stamina = Mathf.Clamp(Stamina + StaminaGain * Time.deltaTime, 0, MaxStamina);
+                }
+                animator.SetBool("Running", false);
+            }
+            UpdateStaminaBar();
+        }
+        else
+        {
+            if(LastSprintTime < PhotonNetwork.Time)
+            {
+                Stamina = Mathf.Clamp(Stamina + StaminaGain * Time.deltaTime, 0, MaxStamina);
+            }
+            animator.SetBool("Running", Running);
+            UpdateStaminaBar();
+        }
         animator.SetBool("Walking", Walking);
-        controller.SimpleMove((transform.forward * Yaxis + transform.right * Xaxis).normalized * Speed);
+        if (controller.isGrounded)
+        {
+            Gravity.y = -1;
+        }
+        else
+        {
+            Gravity.y -= 1 * Time.deltaTime;
+        }
+        if (needtojump)
+        {
+            needtojump = false;
+            Gravity.y = JumpForce;
+        }
+        controller.Move(Gravity + (transform.forward * Yaxis + transform.right * Xaxis).normalized * Speed * Time.deltaTime);
         transform.Rotate(Vector3.up, MXaxis);
         angle -= MYaxis;
 
@@ -201,7 +299,8 @@ public class PlayerController : MonoBehaviourPun
         //}
         if (CurrentGun.ShootValidation())
         {
-            if (TimeBeforeNextShoot > Time.time || reloading || CurrentGun.Ammo <= 0) return;
+            if (TimeBeforeNextShoot < Time.time && !reloading && CurrentGun.Ammo > 0)
+            {
             TimeBeforeNextShoot = Time.time + CurrentGun.FireSpeed;
             RemoveBullet();
             UpdateAmmo();
@@ -209,9 +308,17 @@ public class PlayerController : MonoBehaviourPun
             this.photonView.RPC(nameof(GunShootClientRpc), RpcTarget.All);
             if (Physics.Raycast(camer.ScreenPointToRay(Input.mousePosition), out RaycastHit hit, CurrentGun.Distance,~LevelManager.Singletone.BulletIgnore))
             {
-                if(hit.collider.gameObject.TryGetComponent<Health>(out Health hp))
+                if(hit.collider.transform.root.TryGetComponent<Health>(out Health hp))
                 {
-                    hp.TakeDamage(CurrentGun.Damage);
+                        if(hit.collider.name == "head")
+                        {
+                            hp.TakeDamage(CurrentGun.Damage * CurrentGun.HeadShotDamageMult);
+                            print("HeadShot!");
+                        }
+                        else
+                        {
+                            hp.TakeDamage(CurrentGun.Damage);
+                        }
                 }
                 if (hit.collider.CompareTag("Wall"))
                 {
@@ -221,19 +328,20 @@ public class PlayerController : MonoBehaviourPun
                 }
                 print(hit.collider.name);
             }
+            }
         }
         if (Input.GetKeyDown(KeyCode.R) && CurrentGun.Reloadable && !reloading && !CurrentGun.InfiniteAmmo)
         {
             reloading = true;
-            this.photonView.RPC(nameof(PlayReload), RpcTarget.All);
+            this.photonView.RPC(nameof(PlayTrigger), RpcTarget.All, CurrentGun.ReloadAnimation);
             Invoke(nameof(ReloadEnd), 1.7f);
         }
+        angle = Mathf.Clamp(angle, -90, 90);
+        cam.transform.localRotation = Quaternion.Euler(angle, 0, 0);
     }
     private void FixedUpdate()
     {
-        if (!PV.IsMine) return;
-        angle = Mathf.Clamp(angle, -90, 90);
-        cam.transform.localRotation = Quaternion.Euler(angle, 0, 0);
+        //if (!PV.IsMine) return;
     }
     private void LateUpdate()
     {
@@ -262,11 +370,12 @@ public class PlayerController : MonoBehaviourPun
     {
         animator.SetTrigger(CurrentGun.AttackAnimation);
         CurrentGun.EmitShootParticle();
+        ASP.ShootSoundAsync(CurrentGun.ShootClip, CurrentGun.MinRange, CurrentGun.MaxRange);
     }
     [PunRPC]
-    public void PlayReload()
+    public void PlayTrigger(string triggername)
     {
-        animator.SetTrigger(CurrentGun.ReloadAnimation);
+        animator.SetTrigger(triggername);
     }
     //[ServerRpc(RequireOwnership = false)]
     //private void BulletholeServerRpc(Vector3 pos, Quaternion rot)

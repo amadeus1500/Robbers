@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using Unity.Netcode;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -17,6 +18,7 @@ public class Health : MonoBehaviourPun
     [SerializeField] Animator animator;
     [SerializeField] Vector3 SpawnPoint;
     [SerializeField] Spectation spectator;
+    [SerializeField] List<Rigidbody> rigibodies;
     public MeshRenderer[] meshes;
     public SkinnedMeshRenderer[] skinnedmesher;
     private void Start()
@@ -40,6 +42,10 @@ public class Health : MonoBehaviourPun
         if (!isAlive) return;
         isAlive = false;
         health = 0;
+        foreach (var item in rigibodies)
+        {
+            item.isKinematic = false;
+        }
         contrl.enabled = false;
         CharControler.enabled = false;
         animator.enabled = false;
