@@ -310,7 +310,7 @@ public class PlayerController : MonoBehaviourPun
             {
                 if(hit.collider.transform.root.TryGetComponent<Health>(out Health hp))
                 {
-                        if(hit.collider.name == "head")
+                        if(hit.collider.CompareTag("Head"))
                         {
                             hp.TakeDamage(CurrentGun.Damage * CurrentGun.HeadShotDamageMult);
                             print("HeadShot!");

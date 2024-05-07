@@ -123,25 +123,26 @@ public static LevelManager Singletone;
     //}
     private void Update()
     {
-        if (PhotonNetwork.IsMasterClient)
-        {
-            if (coroutineStarted) return;
-            if (Proggress == GameProgress.MidGame)
-            {
-                StartCoroutine(MidGame());
-            }
-            else if(Proggress == GameProgress.Intermission)
-            {
-                coroutineStarted = true;
-                StartCoroutine(InterMission());
-            }else if(Proggress == GameProgress.End)
-            {
-                photonView.RPC(nameof(KillAll), RpcTarget.All);
-                Proggress = GameProgress.Intermission;
-                TimeLeft = PhotonNetwork.Time + 10;
-                InGamePlayers.Clear();
-            }
-        }
+        //if (PhotonNetwork.IsMasterClient)
+        //{
+        //    if (coroutineStarted) return;
+        //    if (Proggress == GameProgress.MidGame)
+        //    {
+        //        StartCoroutine(MidGame());
+        //    }
+        //    else if (Proggress == GameProgress.Intermission)
+        //    {
+        //        coroutineStarted = true;
+        //        StartCoroutine(InterMission());
+        //    }
+        //    else if (Proggress == GameProgress.End)
+        //    {
+        //        photonView.RPC(nameof(KillAll), RpcTarget.All);
+        //        Proggress = GameProgress.Intermission;
+        //        TimeLeft = PhotonNetwork.Time + 10;
+        //        InGamePlayers.Clear();
+        //    }
+        //}
     }
     public void AddPlr(Player gameplayer)
     {
@@ -156,11 +157,18 @@ public static LevelManager Singletone;
     //        PhotonNetwork.CurrentRoom.SetCustomProperties(roomProperties);
     //    }
     //}
-    //private void Start()
-    //{        //roomProperties["TimeLeft"] = PhotonNetwork.Time + 10;
-    //    //roomProperties["GameStarted"] = false;
-    //    //SetHashes();
-    //}
+    public override void OnConnectedToMaster()
+    {
+        PhotonNetwork.JoinRandomOrCreateRoom();
+    }
+    private void Start()
+    {
+        PhotonNetwork.ConnectUsingSettings();
+    }
+    public override void OnJoinedRoom()
+    {
+        Spawn();
+    }
     [PunRPC]
     public void Spawn()
     {
